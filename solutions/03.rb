@@ -1,129 +1,101 @@
+class Integer
+  def prime?
+    return false if self == 1
+    2.upto(self ** 0.5).all? {|n| self % n != 0 }
+  end
+end
+
 module DrunkenMathematician
   module_function
 
-  def prime?(argument)
-    iterate = 2
-
-    while iterate < argument
-      return false if argument % iterate == 0
-      iterate += 1
-    end
-
-    if argument == 1
-      false
-    else
-      true
-    end
+  def prime_group?(rational)
+    rational.numerator.prime? or rational.denominator.prime?
   end
 
-  def prime_group?(number)
-    if prime?(number.numerator) or prime?(number.denominator)
-      true
-    else
-      false
-    end
-  end
+  def meaningless(number)
+    sequence = RationalSequence.new(number)
+    group_1, group_2 = sequence.partition { |n| prime_group? n }
 
-  def meaningless(argument)
-    group_1 = RationalSequence.new(argument).select { |n| prime_group? n }
-    group_2 = RationalSequence.new(argument).select { |n| !prime_group? n }
-
-    group_1.reduce(1) {|a, b| a * b} / group_2.reduce(1) {|a, b| a * b }
+    group_1.reduce(1, :*) / group_2.reduce(1, :*)
   end
 
   def aimless(argument)
-    array = PrimeSequence.new(argument).to_a
-    count = 1
-    rational_primes = []
-
-    while count <= argument
-      if count == argument
-        rational_primes << Rational(array[count - 1], 1)
-      else
-        rational_primes << Rational(array[count - 1], array[count])
-      end
-      count += 2
-    end
-
-    rational_primes.reduce(0) {|a, b| a + b }
+    array = PrimeSequence.new(argument)
+    array.each_slice(2).map {|a, b| Rational(a, b || 1) }.reduce(:+)
   end
 
   def worthless(argument)
-    max = FibonacciSequence.new(argument).to_a[-1]
-    section = 0
+    max = FibonacciSequence.new(argument).to_a.last
+    rational_sum = 0
 
-    rational_sum = RationalSequence.new(section).reduce(0) {|a, b| a + b }
-
-    while rational_sum <= max
-      section += 1
-      rational_sum = RationalSequence.new(section).reduce(0) {|a, b| a + b }
+    RationalSequence.new(max ** 2).take_while do |current|
+      rational_sum += current
+      rational_sum <= max
     end
-
-    RationalSequence.new(section - 1).to_a
-
   end
 end
 
 class RationalSequence
   include Enumerable
-  include DrunkenMathematician
 
   def initialize(limit)
     @limit = limit
-    @numerator = 1
-    @denominator = 1
     @direction = false
   end
 
-  def each
-    count = 0
+  def each(&block)
+    enum_for(:generate).lazy.take(@limit).each(&block)
+  end
 
-    while count < @limit
-      current = Rational(@numerator, @denominator)
-      if current.inspect == "(#{@numerator}/#{@denominator})"
-        yield current
-        count += 1
-      end
+  private
 
-      next_rational
+  def generate
+    numerator = 1
+    denominator = 1
+
+    loop do
+      current = Rational(numerator, denominator)
+      yield current if current.inspect == "(#{numerator}/#{denominator})"
+      numerator, denominator = next_rational(numerator, denominator)
     end
   end
 
-  def next_rational
-    if @denominator == 1 and @direction == false
-      @numerator += 1
+  def next_rational(numerator, denominator)
+    if denominator == 1 and @direction == false
+      numerator += 1
       @direction = true
-    elsif @numerator == 1 and @direction == true
-      @denominator += 1
+    elsif numerator == 1 and @direction == true
+      denominator += 1
       @direction = false
     elsif @direction == true
-      @numerator -= 1
-      @denominator += 1
+      numerator -= 1
+      denominator += 1
     else
-      @numerator += 1
-      @denominator -= 1
+      numerator += 1
+      denominator -= 1
     end
+    [numerator, denominator]
   end
 end
 
 class PrimeSequence
   include Enumerable
-  include DrunkenMathematician
 
   def initialize(limit)
     @limit = limit
   end
 
-  def each
+  def each(&block)
+    enum_for(:generate).lazy.take(@limit).each(&block)
+  end
+
+  private
+
+  def generate
     current = 2
-    count = @limit
 
-    while count > 0
-      if prime? current
-        yield current
-        count -= 1
-      end
-
+    loop do
+      yield current if current.prime?
       current += 1
     end
   end
@@ -131,18 +103,21 @@ end
 
 class FibonacciSequence
   include Enumerable
-  include DrunkenMathematician
 
   def initialize(limit, first: 1, second: 1)
     @limit, @first, @second = limit, first, second
   end
 
-  def each
-    current, previous = @second, @first
-    count = @limit
+  def each(&block)
+    enum_for(:generate).lazy.take(@limit).each(&block)
+  end
 
-    while count > 0
-      count -= 1
+  private
+
+  def generate
+    current, previous = @second, @first
+
+    loop do
       yield previous
       current, previous = current + previous, current
     end
